@@ -7,7 +7,7 @@ Preface
 * Especially, number three and four item will greatly help them since it suggests quite different and detailed guideline compared to the one on the official website.
 1. Required Operating System
 ----------------------------
-Ubuntu 16.04 is recommended.
+Any Linux system can be used, but Ubuntu 16.04 is recommended.
 
 2. Installing ROS on Remote PC
 ------------------------------
@@ -30,6 +30,7 @@ Ubuntu 16.04 is recommended.
 * You may check your IP using ifconfig command on your terminal.
 * ifconfig will print out various information.
 * Your IP will be printed next to "inet addr".
+* Virtual machine environment is not recommended, but still if you have to be on such an environment check the following one instruction; otherwise you may skip it.
 * If you are on virtual machine, you should not share network with your host. Instead the virtual machine should have its own network. You can change this configuration on your virtual machine software.
 * You can change your network configuration by editing ".bashrc" file on your home directory using any editor. (The example here will use vim editor)
 * $ vim ~/.bashrc
