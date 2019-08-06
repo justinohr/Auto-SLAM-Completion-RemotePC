@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseStamped
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
+import tf
 import sys, select, os, signal, time
 import numpy as np
 if os.name == 'nt':
@@ -22,6 +25,8 @@ ANG_VEL_STEP_SIZE = 0.1
 e = """
 Communications Failed
 """
+
+c = 0
 
 def signal_handler(signal, frame):
     twist = Twist()
@@ -73,12 +78,37 @@ def checkAngularLimitVelocity(vel):
 
     return vel
 
+def process_laser(msg):
+    global c
+    c += 1
+    if c % 5 == 0: # parsing the LaserScan data collected from LiDAR 
+        result = list()
+        raw = str(msg).split()[25: 25 + int(round(float(str(msg).split()[13]) - float(str(msg).split()[11])) / float(str(msg).split()[15])) - 1]
+        for token in raw:
+            token = token.replace(",","")
+            token = token.replace("[","")
+            token = token.replace("]","")
+            result.append(token)
+        print map(float, result) # Find the longest zeros and return the orientation of it.
+
+def process_odom(msg):
+    quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
+        msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
+    theta = euler_from_quaternion(quaternion)
+    print theta
+
+def euler_from_quaternion(quaternion):
+        theta = tf.transformations.euler_from_quaternion(quaternion)[2]
+        return theta
+
 if __name__=="__main__":
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
 
     rospy.init_node('turtlebot3_teleop')
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+    sub_scan = rospy.Subscriber('scan', LaserScan, process_laser, queue_size=10)
+    sub_odom = rospy.Subscriber('odom', Odometry, process_odom, queue_size=10)
 
     turtlebot3_model = rospy.get_param("model", "burger")
 
