@@ -35,73 +35,44 @@ def signal_handler(signal, frame):
     pub.publish(twist)
     sys.exit(0)
 
-def vels(target_linear_vel, target_angular_vel):
-    return "currently:\tlinear vel %s\t angular vel %s " % (target_linear_vel,target_angular_vel)
 
-def makeSimpleProfile(output, input, slop):
-    if input > output:
-        output = min( input, output + slop )
-    elif input < output:
-        output = max( input, output - slop )
-    else:
-        output = input
-
-    return output
-
-def constrain(input, low, high):
-    if input < low:
-      input = low
-    elif input > high:
-      input = high
-    else:
-      input = input
-
-    return input
-
-def checkLinearLimitVelocity(vel):
-    if turtlebot3_model == "burger":
-      vel = constrain(vel, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
-    elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
-      vel = constrain(vel, -WAFFLE_MAX_LIN_VEL, WAFFLE_MAX_LIN_VEL)
-    else:
-      vel = constrain(vel, -BURGER_MAX_LIN_VEL, BURGER_MAX_LIN_VEL)
-
-    return vel
-
-def checkAngularLimitVelocity(vel):
-    if turtlebot3_model == "burger":
-      vel = constrain(vel, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
-    elif turtlebot3_model == "waffle" or turtlebot3_model == "waffle_pi":
-      vel = constrain(vel, -WAFFLE_MAX_ANG_VEL, WAFFLE_MAX_ANG_VEL)
-    else:
-      vel = constrain(vel, -BURGER_MAX_ANG_VEL, BURGER_MAX_ANG_VEL)
-
-    return vel
+def find_most_far_point(result, length):
+    cur_MAX = 0
+    cur_position = 0
+    for i in range(length):
+        if cur_MAX < result[i]:
+            cur_MAX = result[i]
+            cur_position = i
+    print cur_MAX
+    return cur_position
 
 def process_laser(msg):
-    global c
-    c += 1
-    if c % 5 == 0: # parsing the LaserScan data collected from LiDAR 
+    global laser_flag, target
+    if laser_flag: # parsing the LaserScan data collected from LiDAR 
         result = list()
-        raw = str(msg).split()[25: 25 + int(round(float(str(msg).split()[13]) - float(str(msg).split()[11])) / float(str(msg).split()[15])) - 1]
+        length = int(round(float(str(msg).split()[13]) - float(str(msg).split()[11])) / float(str(msg).split()[15]))
+        raw = str(msg).split()[25: 25 + length]
         for token in raw:
             token = token.replace(",","")
             token = token.replace("[","")
             token = token.replace("]","")
             result.append(token)
-        print map(float, result) # Find the longest zeros and return the orientation of it.
+        result = map(float, result)
+        target = find_most_far_point(result, length) * float(str(msg).split()[15])
+        laser_flag = 0
 
 def process_odom(msg):
+    global theta
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
-    print theta
 
 def euler_from_quaternion(quaternion):
         theta = tf.transformations.euler_from_quaternion(quaternion)[2]
         return theta
 
 if __name__=="__main__":
+    global laser_flag, target, theta
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
 
@@ -111,29 +82,29 @@ if __name__=="__main__":
     sub_odom = rospy.Subscriber('odom', Odometry, process_odom, queue_size=10)
 
     turtlebot3_model = rospy.get_param("model", "burger")
-
-    target_linear_vel   = 0.0
-    target_angular_vel  = 0.0
-    control_linear_vel  = 0.0
-    control_angular_vel = 0.0
-
     signal.signal(signal.SIGINT, signal_handler)
-    speed = np.array([[0.05,.0,.0,.0,.0,.0],[.0,.0,.0,.0,.0,np.pi/4],[.0,.0,.0,.0,.0,.0]])
-    count = 0
+    count = 0 
     try:
         while(1):
             twist = Twist()
-            twist.linear.x  = speed[count%3][0]; twist.linear.y = speed[count%3][1]; twist.linear.z = speed[count%3][2]
-            twist.angular.x = speed[count%3][3]; twist.angular.y = speed[count%3][4]; twist.angular.z = speed[count%3][5]
-            pub.publish(twist)
-            if count % 3 == 0:
-                time.sleep(5)
-            elif count % 3 == 1:
+            if count % 2 == 0:
+                laser_flag = 1
+                while laser_flag: # Waiting for laser scan
+                    pass
+                while target > np.pi:
+                    target -= np.pi
+                print (target - theta) / 2
+                twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 2
+                pub.publish(twist)
                 time.sleep(2)
-            else:
-                time.sleep(3)
-            count +=1
-
+            else :
+                twist.linear.x  = 0.05; twist.linear.y = 0; twist.linear.z = 0
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+                pub.publish(twist)
+                time.sleep(5)
+            count += 1
+            
     except:
         print e
 
