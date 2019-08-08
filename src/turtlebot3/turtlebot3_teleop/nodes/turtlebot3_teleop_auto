@@ -43,36 +43,30 @@ def find_most_far_point(result, length):
         if cur_MAX < result[i]:
             cur_MAX = result[i]
             cur_position = i
-    print cur_MAX
     return cur_position
 
 def process_laser(msg):
     global laser_flag, target
     if laser_flag: # parsing the LaserScan data collected from LiDAR 
-        result = list()
-        length = int(round(float(str(msg).split()[13]) - float(str(msg).split()[11])) / float(str(msg).split()[15]))
-        raw = str(msg).split()[25: 25 + length]
-        for token in raw:
-            token = token.replace(",","")
-            token = token.replace("[","")
-            token = token.replace("]","")
-            result.append(token)
-        result = map(float, result)
-        target = find_most_far_point(result, length) * float(str(msg).split()[15])
+        result = np.array(msg.ranges)
+        target = find_most_far_point(result, len(result)) * msg.angle_increment
         laser_flag = 0
 
 def process_odom(msg):
-    global theta
+    global theta, x, y
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
+    x = msg.pose.pose.position.x
+    y = msg.pose.pose.position.y
+
 
 def euler_from_quaternion(quaternion):
         theta = tf.transformations.euler_from_quaternion(quaternion)[2]
         return theta
 
 if __name__=="__main__":
-    global laser_flag, target, theta
+    global laser_flag, target, theta, x, y
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
 
@@ -87,19 +81,35 @@ if __name__=="__main__":
     try:
         while(1):
             twist = Twist()
-            if count % 2 == 0:
+            if count % 4 == 0:
                 laser_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
                 while target > np.pi:
-                    target -= np.pi
-                print (target - theta) / 2
+                    target -= 2 * np.pi
+                print target
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
-                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 2
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 4
                 pub.publish(twist)
-                time.sleep(2)
-            else :
-                twist.linear.x  = 0.05; twist.linear.y = 0; twist.linear.z = 0
+                time.sleep(4)
+            elif count % 4 == 1:
+                odom_flag = 1
+                cur_x = x; cur_y = y;
+                print cur_x, cur_y
+                twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+                pub.publish(twist)
+                time.sleep(5)
+            elif count % 4 == 2:
+                print x, y
+                print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
+                if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
+                    twist.linear.x  = -.07; twist.linear.y = 0; twist.linear.z = 0
+                    twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+                    pub.publish(twist)
+                    time.sleep(3)
+            else:
+                twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
                 time.sleep(5)
