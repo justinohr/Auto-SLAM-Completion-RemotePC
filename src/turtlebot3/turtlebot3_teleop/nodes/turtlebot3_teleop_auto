@@ -81,18 +81,18 @@ if __name__=="__main__":
     try:
         while(1):
             twist = Twist()
-            if count % 4 == 0:
+            if count % 4 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
                 while target > np.pi:
-                    target -= 2 * np.pi
+                    target -= 2 * np.pi # making the range of target into between negative pi and positive pi
                 print target
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 4
                 pub.publish(twist)
                 time.sleep(4)
-            elif count % 4 == 1:
+            elif count % 4 == 1: # Moving ahead for an half meter
                 odom_flag = 1
                 cur_x = x; cur_y = y;
                 print cur_x, cur_y
@@ -100,7 +100,7 @@ if __name__=="__main__":
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
                 time.sleep(5)
-            elif count % 4 == 2:
+            elif count % 4 == 2: # Moving back when the robot meets the obstacle
                 print x, y
                 print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
                 if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
@@ -108,7 +108,7 @@ if __name__=="__main__":
                     twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                     pub.publish(twist)
                     time.sleep(3)
-            else:
+            else: # Waiting for the remote PC to arrange SLAM data
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
