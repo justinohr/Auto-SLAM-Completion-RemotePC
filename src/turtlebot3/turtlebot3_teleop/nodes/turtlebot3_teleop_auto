@@ -57,6 +57,7 @@ def process_odom(msg):
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
+    print theta
     x = msg.pose.pose.position.x
     y = msg.pose.pose.position.y
 
@@ -77,7 +78,8 @@ if __name__=="__main__":
 
     turtlebot3_model = rospy.get_param("model", "burger")
     signal.signal(signal.SIGINT, signal_handler)
-    count = 0 
+    count = 0
+    delay = rospy.Rate(.1) 
     try:
         while(1):
             twist = Twist()
@@ -89,30 +91,33 @@ if __name__=="__main__":
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
                 print target
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
-                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 4
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 10
                 pub.publish(twist)
-                time.sleep(4)
+                delay.sleep()
+
             elif count % 4 == 1: # Moving ahead for an half meter
                 odom_flag = 1
                 cur_x = x; cur_y = y;
                 print cur_x, cur_y
-                twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
+                twist.linear.x  = 0.05; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
-                time.sleep(5)
+                delay.sleep()
+
             elif count % 4 == 2: # Moving back when the robot meets the obstacle
                 print x, y
                 print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
                 if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
-                    twist.linear.x  = -.07; twist.linear.y = 0; twist.linear.z = 0
+                    twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
                     twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                     pub.publish(twist)
-                    time.sleep(3)
+                    delay.sleep()
+                    
             else: # Waiting for the remote PC to arrange SLAM data
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
-                time.sleep(5)
+                delay.sleep()
             count += 1
             
     except:
