@@ -43,13 +43,15 @@ def find_most_far_point(result, length):
         if cur_MAX < result[i]:
             cur_MAX = result[i]
             cur_position = i
+    print cur_position
+    print cur_MAX
     return cur_position
 
 def process_laser(msg):
     global laser_flag, target
     if laser_flag: # parsing the LaserScan data collected from LiDAR 
         result = np.array(msg.ranges)
-        target = find_most_far_point(result, len(result)) * msg.angle_increment
+        target = msg.angle_min + find_most_far_point(result, len(result)) * msg.angle_increment
         laser_flag = 0
 
 def process_odom(msg):
@@ -57,7 +59,7 @@ def process_odom(msg):
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
-    print theta
+
     x = msg.pose.pose.position.x
     y = msg.pose.pose.position.y
 
@@ -79,7 +81,7 @@ if __name__=="__main__":
     turtlebot3_model = rospy.get_param("model", "burger")
     signal.signal(signal.SIGINT, signal_handler)
     count = 0
-    delay = rospy.Rate(.1) 
+    delay = rospy.Rate(.2) 
     try:
         while(1):
             twist = Twist()
@@ -91,7 +93,7 @@ if __name__=="__main__":
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
                 print target
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
-                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = (target - theta) / 10
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target / 5
                 pub.publish(twist)
                 delay.sleep()
 
@@ -99,16 +101,17 @@ if __name__=="__main__":
                 odom_flag = 1
                 cur_x = x; cur_y = y;
                 print cur_x, cur_y
-                twist.linear.x  = 0.05; twist.linear.y = 0; twist.linear.z = 0
+                twist.linear.x  = -0.07; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
                 delay.sleep()
 
             elif count % 4 == 2: # Moving back when the robot meets the obstacle
+                break
                 print x, y
                 print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
                 if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
-                    twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
+                    twist.linear.x  = .02; twist.linear.y = 0; twist.linear.z = 0
                     twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                     pub.publish(twist)
                     delay.sleep()
