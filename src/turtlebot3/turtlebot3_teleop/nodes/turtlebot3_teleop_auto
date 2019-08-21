@@ -43,15 +43,13 @@ def find_most_far_point(result, length):
         if cur_MAX < result[i]:
             cur_MAX = result[i]
             cur_position = i
-    print cur_position
-    print cur_MAX
     return cur_position
 
 def process_laser(msg):
     global laser_flag, target
     if laser_flag: # parsing the LaserScan data collected from LiDAR 
         result = np.array(msg.ranges)
-        target = msg.angle_min + find_most_far_point(result, len(result)) * msg.angle_increment
+        target = find_most_far_point(result, len(result)) * msg.angle_increment + np.pi * 3/2
         laser_flag = 0
 
 def process_odom(msg):
@@ -85,42 +83,42 @@ if __name__=="__main__":
     try:
         while(1):
             twist = Twist()
-            if count % 4 == 0: # Finding the orientation to move ahead
+            if count % 2 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
                 while target > np.pi:
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
-                print target
+                #print target
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target / 5
                 pub.publish(twist)
                 delay.sleep()
 
-            elif count % 4 == 1: # Moving ahead for an half meter
+            elif count % 2 == 1: # Moving ahead for an half meter
                 odom_flag = 1
                 cur_x = x; cur_y = y;
-                print cur_x, cur_y
-                twist.linear.x  = -0.07; twist.linear.y = 0; twist.linear.z = 0
+                #print cur_x, cur_y
+                twist.linear.x  = 0.2; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
                 delay.sleep()
-
-            elif count % 4 == 2: # Moving back when the robot meets the obstacle
-                break
-                print x, y
-                print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
-                if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
-                    twist.linear.x  = .02; twist.linear.y = 0; twist.linear.z = 0
-                    twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-                    pub.publish(twist)
-                    delay.sleep()
+            
+            #elif count % 4 == 2: # Moving back when the robot meets the obstacle
+            #    break
+                #print x, y
+                #print (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) 
+            #    if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 : 
+            #        twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
+            #        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+            #        pub.publish(twist)
+            #        delay.sleep()
                     
-            else: # Waiting for the remote PC to arrange SLAM data
-                twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
-                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-                pub.publish(twist)
-                delay.sleep()
+            #else: # Waiting for the remote PC to arrange SLAM data
+            #    twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
+            #    twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+            #    pub.publish(twist)
+            #    delay.sleep()
             count += 1
             
     except:
