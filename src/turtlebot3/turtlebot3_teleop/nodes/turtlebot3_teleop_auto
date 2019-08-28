@@ -43,31 +43,52 @@ def find_most_far_point(result, length):
         if cur_MAX < result[i]:
             cur_MAX = result[i]
             cur_position = i
-    return cur_position
+    return cur_position, result[cur_position]
 
 def process_laser(msg):
-    global laser_flag, target
+    global laser_flag, target, distance
     if laser_flag: # parsing the LaserScan data collected from LiDAR 
         result = np.array(msg.ranges)
-        target = find_most_far_point(result, len(result)) * msg.angle_increment + np.pi * 3/2
+        direction, distance = find_most_far_point(result, len(result))
+        target = direction * msg.angle_increment + np.pi * 3/2
         laser_flag = 0
 
 def process_odom(msg):
-    global theta, x, y
+    global theta, odom_flag
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
+    odom_flag = 0
 
-    x = msg.pose.pose.position.x
-    y = msg.pose.pose.position.y
 
 
 def euler_from_quaternion(quaternion):
         theta = tf.transformations.euler_from_quaternion(quaternion)[2]
         return theta
 
+def check(target, prev_angle):
+    global theta, odom_flag
+    odom_flag = 1
+    while odom_flag : # waiting for odom_flag to be updated
+        pass
+    twist = Twist()
+    prev_angle = prev_angle if prev_angle >= 0 else prev_angle + np.pi * 2
+    cur_angle = theta
+    cur_angle = cur_angle if cur_angle >= 0 else cur_angle + np.pi * 2
+    delta = abs(cur_angle - prev_angle)
+    delta = delta if delta < np.pi else np.pi * 2 - delta
+    print delta
+    if delta < abs(target) * 3 / 4 and abs(target) > 0.1:
+        twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
+        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+        pub.publish(twist)
+        time.sleep(1.5)
+        return 1
+    else :
+        return 0
+
 if __name__=="__main__":
-    global laser_flag, target, theta, x, y
+    global laser_flag, target, theta, distance
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
 
@@ -79,36 +100,28 @@ if __name__=="__main__":
     turtlebot3_model = rospy.get_param("model", "burger")
     signal.signal(signal.SIGINT, signal_handler)
     count = 0
-    delay = rospy.Rate(.2) 
     try:
         while(1):
             twist = Twist()
-            if count % 3 == 0: # Finding the orientation to move ahead
+            if count % 2 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
                 while target > np.pi:
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
+                prev_angle = theta
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
-                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target / 5
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target / 3
                 pub.publish(twist)
-                delay.sleep()
-
-            elif count % 3 == 1: # Moving ahead for an half meter
-                odom_flag = 1
-                cur_x = x; cur_y = y;
+                time.sleep(3)
+                result = check(target, prev_angle) # Moving back when the robot meets the obstacle
+                if result :
+                    continue
+            else: # Moving ahead for an half meter
                 twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-                pub.publish(twist)
-                delay.sleep()
-            
-            else: # Moving back when the robot meets the obstacle                
-                if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.2 :
-                    print "moving back" 
-                    twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
-                    twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-                    pub.publish(twist)
-                    delay.sleep()
+                pub.publish(twist)                
+                time.sleep((distance - 1.5) * 10)
                     
             count += 1
             
