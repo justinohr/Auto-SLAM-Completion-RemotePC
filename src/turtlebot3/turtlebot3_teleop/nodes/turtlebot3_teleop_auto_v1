@@ -1,0 +1,144 @@
+#!/usr/bin/env python
+
+import rospy
+from geometry_msgs.msg import Twist, PoseStamped
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
+import tf
+import sys, select, os, signal, time, random
+import numpy as np
+if os.name == 'nt':
+  import msvcrt
+else:
+  import tty, termios
+
+BURGER_MAX_LIN_VEL = 0.22
+BURGER_MAX_ANG_VEL = 2.84
+
+WAFFLE_MAX_LIN_VEL = 0.26
+WAFFLE_MAX_ANG_VEL = 1.82
+
+LIN_VEL_STEP_SIZE = 0.01
+ANG_VEL_STEP_SIZE = 0.1
+
+
+e = """
+Communications Failed
+"""
+
+c = 0
+
+def signal_handler(signal, frame):
+    twist = Twist()
+    twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
+    twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
+    pub.publish(twist)
+    sys.exit(0)
+
+
+def find_proper_direction(result, length, delta):
+    beta = 1.316428268
+    gamma = 0.2543680586
+    tmp = np.array([],'float64')
+    for i in range(length / 4):
+        if i * delta + np.pi/4 < beta:
+            tmp = np.append(tmp, .13/np.cos(i * delta + np.pi/4))
+        elif i * delta + np.pi/4 < np.pi / 2:
+            tmp = np.append(tmp, .5/np.cos(np.pi/4 - i * delta))
+    tmp = tmp[:-1]
+
+    compare = np.concatenate((tmp, tmp[::-1]))
+
+    idx = range(length)
+    random.shuffle(idx)
+    for i in idx:
+        flag = 1
+        for j in range(length / 4):
+            if result[(i + j - length / 8) % 360] < compare[j] and result[(i + j - length / 8) % 360] > 0:
+                flag = 0
+                break
+        if flag:
+            return i
+    
+    # terminates process when it cannot find proper direction
+    pid = os.getpid()
+    os.kill(pid, signal.SIGINT)
+
+def process_laser(msg):
+    global laser_flag, target
+    if laser_flag: # parsing the LaserScan data collected from LiDAR 
+        result = np.array(msg.ranges)
+        target = find_proper_direction(result, len(result), msg.angle_increment) * msg.angle_increment + np.pi * 3/2
+        laser_flag = 0
+
+def process_odom(msg):
+    global theta, x, y
+    quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
+        msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
+    theta = euler_from_quaternion(quaternion)
+
+    x = msg.pose.pose.position.x
+    y = msg.pose.pose.position.y
+
+
+def euler_from_quaternion(quaternion):
+        theta = tf.transformations.euler_from_quaternion(quaternion)[2]
+        return theta
+
+if __name__=="__main__":
+    global laser_flag, target, theta, x, y
+    if os.name != 'nt':
+        settings = termios.tcgetattr(sys.stdin)
+
+    rospy.init_node('turtlebot3_teleop')
+    pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+    sub_scan = rospy.Subscriber('scan', LaserScan, process_laser, queue_size=10)
+    sub_odom = rospy.Subscriber('odom', Odometry, process_odom, queue_size=10)
+
+    turtlebot3_model = rospy.get_param("model", "burger")
+    signal.signal(signal.SIGINT, signal_handler)
+    count = 0
+    delay = rospy.Rate(.25) 
+    try:
+        while(1):
+            twist = Twist()
+            if count % 3 == 0: # Finding the orientation to move ahead
+                laser_flag = 1
+                while laser_flag: # Waiting for laser scan
+                    pass
+                while target > np.pi:
+                    target -= 2 * np.pi # making the range of target into between negative pi and positive pi
+                twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target / 4
+                pub.publish(twist)
+                delay.sleep()
+
+            elif count % 3 == 1: # Moving ahead for an half meter
+                cur_x = x; cur_y = y;
+                twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
+                twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+                pub.publish(twist)
+                delay.sleep()
+            
+            else: # Moving back when the robot meets the obstacle                
+                if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.1 :
+                    print "moving back" 
+                    twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
+                    twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+                    pub.publish(twist)
+                    delay.sleep()
+                    
+            count += 1
+            
+    except:
+        print e
+
+    finally:
+        twist = Twist()
+        twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
+        twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
+        pub.publish(twist)
+
+    if os.name != 'nt':
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+
