@@ -103,13 +103,13 @@ def process_imu(msg):
         time.sleep(1)
 
     # gyroscope portion is not tested
-    elif angular_flag and msg.angular_velocity.z < target * 3/4 and target > np.pi / 4:
-        print "moving back"
-        linear_flag = 0
-        twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
-        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-        pub.publish(twist)
-        time.sleep(1)
+    elif angular_flag and msg.angular_velocity.z < target * 3/4 and target > np.pi / 4 and msg.angular_velocity.z > 0:
+            print "moving back"
+            linear_flag = 0
+            twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
+            twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+            pub.publish(twist)
+            time.sleep(1)
 
 if __name__=="__main__":
     global laser_flag, target, theta, x, y, linear_flag, angular_flag
@@ -132,9 +132,9 @@ if __name__=="__main__":
             twist = Twist()
             if count % 2 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
-                angular_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
+                angular_flag = 1
                 while target > np.pi:
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
