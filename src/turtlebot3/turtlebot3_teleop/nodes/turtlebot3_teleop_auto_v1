@@ -96,6 +96,7 @@ def process_imu(msg):
     twist = Twist()
     if imu_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 5:
         print "moving back"
+        imu_flag = 0
         twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
         twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
         pub.publish(twist)
