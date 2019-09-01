@@ -92,22 +92,32 @@ def euler_from_quaternion(quaternion):
     return theta
 
 def process_imu(msg):
-    global imu_flag
+    global linear_flag, angular_flag, target
     twist = Twist()
-    if imu_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 5:
+    if linear_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 5:
         print "moving back"
-        imu_flag = 0
+        linear_flag = 0
+        twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
+        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+        pub.publish(twist)
+        time.sleep(1)
+
+    # gyroscope portion is not tested
+    elif angular_flag and msg.angular_velocity.z < target * 3/4 and target > np.pi / 4:
+        print "moving back"
+        linear_flag = 0
         twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
         twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
         pub.publish(twist)
         time.sleep(1)
 
 if __name__=="__main__":
-    global laser_flag, target, theta, x, y, imu_flag
+    global laser_flag, target, theta, x, y, linear_flag, angular_flag
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
 
-    imu_flag = 0
+    linear_flag = 0
+    angular_flag = 0
     rospy.init_node('turtlebot3_teleop')
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
     sub_scan = rospy.Subscriber('scan', LaserScan, process_laser, queue_size=10)
@@ -122,6 +132,7 @@ if __name__=="__main__":
             twist = Twist()
             if count % 2 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
+                angular_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
                 while target > np.pi:
@@ -130,14 +141,15 @@ if __name__=="__main__":
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target
                 pub.publish(twist)
                 time.sleep(1)
+                angular_flag = 0
 
             elif count % 2 == 1: # Moving ahead for an half meter
-                imu_flag = 1
+                linear_flag = 1
                 twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
                 time.sleep(4)
-                imu_flag = 0
+                linear_flag = 0
                     
             count += 1
             
