@@ -80,13 +80,11 @@ def process_laser(msg):
         laser_flag = 0
 
 def process_odom(msg):
-    global theta, x, y
+    global theta
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
 
-    x = msg.pose.pose.position.x
-    y = msg.pose.pose.position.y
 
 
 def euler_from_quaternion(quaternion):
@@ -139,14 +137,6 @@ if __name__=="__main__":
                 pub.publish(twist)
                 time.sleep(4)
                 imu_flag = 0
-            
-            #else: # Moving back when the robot meets the obstacle                
-            #    if (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) < 0.1 :
-            #        print "moving back" 
-            #        twist.linear.x  = -.02; twist.linear.y = 0; twist.linear.z = 0
-            #        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-            #        pub.publish(twist)
-            #        delay_l.sleep()
                     
             count += 1
             
