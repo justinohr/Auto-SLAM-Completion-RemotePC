@@ -37,6 +37,7 @@ def signal_handler(signal, frame):
 
 
 def find_proper_direction(result, length, delta):
+    global pid, obs_flag
     beta = 1.316428268
     gamma = 0.2543680586
     tmp = np.array([],'float64')
@@ -49,10 +50,17 @@ def find_proper_direction(result, length, delta):
 
     compare = np.concatenate((tmp, tmp[::-1]))
  
-    idx_1 = range(length / 8) + range(length * 7/8, length)
-    idx_2 = range(length / 8, length / 4) + range(length * 3/4, length * 7/8)
-    idx_3 = range(length / 4, length * 3/4)
-    
+    if obs_flag == 0:
+        idx_1 = range(length / 8) + range(length * 7/8, length)
+        idx_2 = range(length / 8, length / 4) + range(length * 3/4, length * 7/8)
+        idx_3 = range(length / 4, length * 3/4)
+
+    else:
+        idx_1 = range(length / 8, length / 4) + range(length * 3/4, length * 7/8)
+        idx_2 = range(length / 4, length * 3/4)
+        idx_3 = range(length / 8) + range(length * 7/8, length)
+        obs_flag = 0
+
     random.shuffle(idx_1)
     random.shuffle(idx_2)
     random.shuffle(idx_3)
@@ -69,7 +77,6 @@ def find_proper_direction(result, length, delta):
             return i
     
     # terminates process when it cannot find proper direction
-    pid = os.getpid()
     os.kill(pid, signal.SIGINT)
 
 def process_laser(msg):
@@ -80,44 +87,50 @@ def process_laser(msg):
         laser_flag = 0
 
 def process_odom(msg):
-    global theta
+    global theta, odom_flag
     quaternion = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, 
         msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
     theta = euler_from_quaternion(quaternion)
-
-
+    odom_flag = 0
 
 def euler_from_quaternion(quaternion):
     theta = tf.transformations.euler_from_quaternion(quaternion)[2]
     return theta
 
 def process_imu(msg):
-    global linear_flag, angular_flag, target
+    global linear_flag, angular_flag, target, back_flag, obs_flag
     twist = Twist()
-    if linear_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 5:
-        print "moving back"
+    if linear_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 8:
+        print "Accelerometer"
+        obs_flag = 1
         linear_flag = 0
         twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
         twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
         pub.publish(twist)
+        back_flag = 1
         time.sleep(1)
+        back_flag = 0
 
-    # gyroscope portion is not tested
-    elif angular_flag and msg.angular_velocity.z < target * 3/4 and target > np.pi / 4 and msg.angular_velocity.z > 0:
-            print "moving back"
-            linear_flag = 0
-            twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
-            twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
-            pub.publish(twist)
-            time.sleep(1)
+    elif angular_flag and abs(msg.angular_velocity.z) > 0.3:
+        print "Gyroscope"
+        obs_flag = 1
+        angular_flag = 0
+        twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
+        twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
+        pub.publish(twist)
+        back_flag = 1
+        time.sleep(1)
+        back_flag = 0
 
 if __name__=="__main__":
-    global laser_flag, target, theta, x, y, linear_flag, angular_flag
+    global laser_flag, target, theta, x, y, linear_flag, angular_flag, pid, obs_flag
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
-
+    pid = os.getpid()
     linear_flag = 0
     angular_flag = 0
+    back_flag = 0
+    obs_flag = 1
     rospy.init_node('turtlebot3_teleop')
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
     sub_scan = rospy.Subscriber('scan', LaserScan, process_laser, queue_size=10)
@@ -130,26 +143,29 @@ if __name__=="__main__":
     try:
         while(1):
             twist = Twist()
+            while back_flag: # Guarantees robot to move back for a second when it requires
+                pass
             if count % 2 == 0: # Finding the orientation to move ahead
                 laser_flag = 1
                 while laser_flag: # Waiting for laser scan
                     pass
-                angular_flag = 1
                 while target > np.pi:
                     target -= 2 * np.pi # making the range of target into between negative pi and positive pi
+
                 twist.linear.x  = 0; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = target
                 pub.publish(twist)
                 time.sleep(1)
-                angular_flag = 0
 
             elif count % 2 == 1: # Moving ahead for an half meter
                 linear_flag = 1
                 twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
-                time.sleep(4)
-                linear_flag = 0
+                time.sleep(1)
+                angular_flag = 1
+                time.sleep(3)
+                angular_flag = 0
                     
             count += 1
             
