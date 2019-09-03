@@ -45,7 +45,7 @@ def find_proper_direction(result, length, delta):
         if i * delta < np.pi / 2 - alpha:
             tmp = np.append(tmp, 0.569/np.cos(i * delta))
         else:
-            tmp = np.append(tmp, 0.13/np.cos(i * delta))
+            tmp = np.append(tmp, 0.13/np.sin(i * delta))
 
     compare = np.concatenate((tmp[::-1][:-1], tmp))
  
