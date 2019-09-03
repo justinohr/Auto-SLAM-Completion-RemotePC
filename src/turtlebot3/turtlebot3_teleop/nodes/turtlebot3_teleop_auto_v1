@@ -35,20 +35,19 @@ def signal_handler(signal, frame):
     pub.publish(twist)
     sys.exit(0)
 
-
 def find_proper_direction(result, length, delta):
     global pid, obs_flag
-    beta = 1.316428268
-    gamma = 0.2543680586
+    alpha = np.arctan(56.9/13.) 
+    beta = np.arctan(13.8/17.8)
     tmp = np.array([],'float64')
-    for i in range(length / 4):
-        if i * delta + np.pi/4 < beta:
-            tmp = np.append(tmp, .13/np.cos(i * delta + np.pi/4))
-        elif i * delta + np.pi/4 < np.pi / 2:
-            tmp = np.append(tmp, .5/np.cos(np.pi/4 - i * delta))
-    tmp = tmp[:-1]
+    boundary = int(np.ceil(np.rad2deg(np.pi/2 - beta)))
+    for i in range(boundary):
+        if i * delta < np.pi / 2 - alpha:
+            tmp = np.append(tmp, 0.569/np.cos(i * delta))
+        else:
+            tmp = np.append(tmp, 0.13/np.cos(i * delta))
 
-    compare = np.concatenate((tmp, tmp[::-1]))
+    compare = np.concatenate((tmp[::-1][:-1], tmp))
  
     if obs_flag == 0:
         idx_1 = range(length / 8) + range(length * 7/8, length)
@@ -69,8 +68,8 @@ def find_proper_direction(result, length, delta):
     
     for i in idx:
         flag = 1
-        for j in range(length / 4):
-            if result[(i + j - length / 8) % length] < compare[j] and result[(i + j - length / 8) % length] > 0:
+        for j in range(1, boundary * 2):
+            if result[(i + j - boundary) % length] < compare[j - 1] and result[(i + j - boundary) % length] > 0:
                 flag = 0
                 break
         if flag:
@@ -101,7 +100,7 @@ def process_imu(msg):
     global linear_flag, angular_flag, target, back_flag, obs_flag
     twist = Twist()
     if linear_flag and abs(msg.linear_acceleration.x) + abs(msg.linear_acceleration.y) > 8:
-        print "Accelerometer"
+        print "Accelerometer Detected"
         obs_flag = 1
         linear_flag = 0
         twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
@@ -112,7 +111,7 @@ def process_imu(msg):
         back_flag = 0
 
     elif angular_flag and abs(msg.angular_velocity.z) > 0.3:
-        print "Gyroscope"
+        print "Gyroscope Detected"
         obs_flag = 1
         angular_flag = 0
         twist.linear.x  = -.1; twist.linear.y = 0; twist.linear.z = 0
@@ -162,9 +161,9 @@ if __name__=="__main__":
                 twist.linear.x  = 0.1; twist.linear.y = 0; twist.linear.z = 0
                 twist.angular.x = 0; twist.angular.y = 0; twist.angular.z = 0
                 pub.publish(twist)
-                time.sleep(1)
+                time.sleep(.5)
                 angular_flag = 1
-                time.sleep(3)
+                time.sleep(3.5)
                 angular_flag = 0
                     
             count += 1
